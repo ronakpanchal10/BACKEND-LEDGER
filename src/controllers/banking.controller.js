@@ -42,6 +42,18 @@ const deposit = async (req,res) => {
 
         const { accountNumber,amount } = req.body
 
+        if (!accountNumber || !amount) {
+            return res.status(400).json({
+                message: "accountNumber and amount are required"
+            })
+        }
+
+        if (amount <= 0) {
+            return res.status(400).json({
+                message: "Amount must be greater than 0"
+            })
+        }
+
         const account = await accountModel.findOne({
             accountNumber
         })
@@ -76,6 +88,18 @@ const withdraw = async (req,res) => {
     try{
 
         const { accountNumber,amount } = req.body
+
+        if (!accountNumber || !amount) {
+            return res.status(400).json({
+                message: "accountNumber and amount are required"
+            })
+        }
+
+        if (amount <= 0) {
+            return res.status(400).json({
+                message: "Amount must be greater than 0"
+            })
+        }
         
         const account = await accountModel.findOne({
             accountNumber
@@ -200,7 +224,6 @@ const getTransactions = async (req, res) => {
         res.status(500).json({ message: "Server Error" })
     }
 }
-
 
 module.exports = {
     createAccount,

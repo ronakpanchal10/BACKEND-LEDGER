@@ -1,7 +1,7 @@
 const userModel = require("../models/user.model")
 const jwt = require("jsonwebtoken")
-const sendEmail = require("../utils/sendEmail")
-const generateOTP = require("../utils/generateOTP")
+const sendEmail = require("../services/sendEmail")
+const generateOTP = require("../services/generateOTP")
 
 
 // REGISTER
@@ -28,7 +28,7 @@ async function userRegisterController(req,res){
         // GENERATE OTP
         const otp = generateOTP()
 
-        const user = await userModel.create({
+        await userModel.create({
             email,
             password,
             name,
@@ -103,6 +103,9 @@ async function verifyOTPController(req,res){
 
     }catch(error){
 
+        console.log(error);
+        
+
         res.status(500).json({
             message:"Server error"
         })
@@ -131,19 +134,35 @@ async function userLoginController(req, res) {
 
         if (!isValidPassword) {
             return res.status(401).json({
-                message: "Email or Password is Invalid"
+                message: "Password is Invalid"
             })
         }
 
-        const token = jwt.sign(
+        const accessToken = jwt.sign(
             { userId: user._id },
-            process.env.JWT_SECRET,
-            { expiresIn: "3d" }
+            process.env.ACCESS_TOKEN_SECRET,
+            { expiresIn: "1h" }
         )
 
-        res.cookie("token", token, {
+        const refreshToken = jwt.sign(
+            { userId: user._id },
+            process.env.REFRESH_TOKEN_SECRET,
+            { expiresIn: "7d" }
+        )
+
+        user.refreshToken = refreshToken;
+        await user.save();
+
+        res.cookie("accessToken", accessToken, {
             httpOnly: true,
-            sameSite:"strict"
+            sameSite:"strict",
+            secure: false
+        })
+
+        res.cookie("refreshToken", refreshToken, {
+            httpOnly: true,
+            sameSite:"strict",
+            secure: false
         })
 
         res.status(200).json({
@@ -152,7 +171,7 @@ async function userLoginController(req, res) {
                 email: user.email,
                 name: user.name
             },
-            token
+            accessToken
         })
 
     } catch (error) {
@@ -167,13 +186,81 @@ async function userLoginController(req, res) {
 
 }
 
+async function refreshTokenController(req, res) {
+
+    const token = req.cookies.refreshToken;
+
+    if (!token) {
+        return res.status(401).json({ message: "No refresh token" });
+    }
+
+    try {
+
+        const decoded = jwt.verify(
+            token,
+            process.env.REFRESH_TOKEN_SECRET
+        );
+
+        const user = await userModel
+            .findById(decoded.userId)
+            .select("+refreshToken");
+
+        console.log("COOKIE:", token);
+        console.log("DB:", user?.refreshToken);
+
+        if (!user || user.refreshToken !== token) {
+            return res.status(403).json({
+                message: "Invalid refresh token"
+            });
+        }
+
+        const newAccessToken = jwt.sign(
+            { userId: user._id },
+            process.env.ACCESS_TOKEN_SECRET,
+            { expiresIn: "15m" }
+        );
+
+        const newRefreshToken = jwt.sign(
+            { userId: user._id },
+            process.env.REFRESH_TOKEN_SECRET,
+            { expiresIn: "7d" }
+        );
+
+        user.refreshToken = newRefreshToken;
+        await user.save();
+
+        res.cookie("accessToken", newAccessToken, {
+            httpOnly: true,
+            sameSite: "strict",
+            secure: false
+        });
+
+        res.cookie("refreshToken", newRefreshToken, {
+            httpOnly: true,
+            sameSite: "strict",
+            secure: false
+        });
+
+        res.status(200).json({
+            accessToken: newAccessToken
+        });
+
+    } catch (err) {
+
+        return res.status(403).json({
+            message: "Invalid or expired refresh token"
+        });
+
+    }
+}
+
 
 // GET CURRENT USER
 async function getUserController(req, res) {
 
     try {
 
-        const token = req.cookies.token
+        const token = req.cookies.accessToken
 
         if (!token) {
             return res.status(401).json({
@@ -181,7 +268,7 @@ async function getUserController(req, res) {
             })
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET)
+        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET)
 
         const user = await userModel.findById(decoded.userId)
 
@@ -209,10 +296,8 @@ async function getUserController(req, res) {
 // LOGOUT
 function logoutController(req, res) {
 
-    res.clearCookie("token", {
-        httpOnly: true,
-        sameSite: "strict"
-    })
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
 
     res.status(200).json({
         message: "Logged out successfully"
@@ -224,6 +309,7 @@ module.exports = {
     userRegisterController,
     verifyOTPController,
     userLoginController,
+    refreshTokenController,
     getUserController,
     logoutController
 }

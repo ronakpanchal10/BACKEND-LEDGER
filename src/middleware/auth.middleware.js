@@ -4,23 +4,16 @@ function authMiddleware(req,res,next){
 
     try{
 
-        const authHeader = req.headers.authorization
+        const authHeader = req.headers.authorization;
 
-        if(!authHeader){
-            return res.status(401).json({
-                success:false,
-                message:"Authorization header missing"
-            })
+        let token;
+
+        if (authHeader && authHeader.startsWith("Bearer ")) {
+            token = authHeader.split(" ")[1];
         }
-
-        if(!authHeader.startsWith("Bearer ")){
-            return res.status(401).json({
-                success:false,
-                message:"Invalid token format"
-            })
+        if (req.cookies?.accessToken) {
+            token = req.cookies.accessToken;
         }
-
-        const token = authHeader.split(" ")[1]
 
         if(!token){
             return res.status(401).json({
@@ -29,7 +22,7 @@ function authMiddleware(req,res,next){
             })
         }
 
-        const decoded = jwt.verify(token,process.env.JWT_SECRET)
+        const decoded = jwt.verify(token,process.env.ACCESS_TOKEN_SECRET)
 
         req.userId = decoded.userId
 
@@ -40,7 +33,7 @@ function authMiddleware(req,res,next){
         if(err.name === "TokenExpiredError"){
             return res.status(401).json({
                 success:false,
-                message:"Token expired"
+                message:"Access Token expired"
             })
         }
 

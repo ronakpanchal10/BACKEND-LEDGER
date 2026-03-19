@@ -23,3 +23,4 @@ router.patch("/:id",authMiddleware,transactionController.patchTransaction)
 router.delete("/:id",authMiddleware,transactionController.deleteTransaction)
 
 module.exports = router
+ 

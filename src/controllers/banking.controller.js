@@ -161,14 +161,20 @@ const transfer = async (req, res) => {
         await sender.save()
         await receiver.save()
 
-        await BankTransactionModel.create({
-            fromAccount:sender._id,
-            toAccount:receiver._id,
+        const txn = await BankTransactionModel.create({
+            fromAccount: sender._id,
+            toAccount: receiver._id,
             amount,
-            type:"transfer"
+            type: "transfer"
         })
 
-        res.json({ message: "Transfer successful" })
+        await txn.populate("fromAccount", "accountNumber")
+        await txn.populate("toAccount", "accountNumber")
+
+        res.json({
+            message: "Transfer successful",
+            transaction: txn
+        })
 
     } catch (err) {
         res.status(500).json({ message: "Server Error" })

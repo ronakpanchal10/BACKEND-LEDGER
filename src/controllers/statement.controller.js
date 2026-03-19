@@ -1,5 +1,6 @@
 const accountModel = require("../models/account.model")
-const BankTransactionModel = require("../models/bankTransaction.model")
+const fs = require("fs")
+const path = require("path")
 const sendEmail = require("../services/sendEmail")
 const getMiniStatementData = require("../services/miniStmt")
 
@@ -44,18 +45,47 @@ const sendMiniStatementEmail = async (req, res) => {
 
         const transactions = await getMiniStatementData(account._id)
 
-        // ✨ Format message
+        // Format message
         let message = `Mini Statement for Account: ${accountNumber}\n\n`
 
         transactions.forEach((txn, index) => {
+            let fromAcc = txn.fromAccount?.accountNumber
+            let toAcc = txn.toAccount?.accountNumber
+
+            if (txn.type === "deposit") {
+                fromAcc = "BANK"
+                toAcc = toAcc || accountNumber
+            } 
+            else if (txn.type === "withdraw") {
+                fromAcc = fromAcc || accountNumber
+                toAcc = "BANK"
+            } 
+            else if (txn.type === "transfer") {
+                if (fromAcc === accountNumber) fromAcc = "SELF"
+                if (toAcc === accountNumber) toAcc = "SELF"
+
+                fromAcc = fromAcc || "UNKNOWN"
+                toAcc = toAcc || "UNKNOWN"
+            }
+
             message += `${index + 1}. ${txn.type.toUpperCase()} | ₹${txn.amount}\n`
-            message += `From: ${txn.fromAccount?.accountNumber || "-"}\n`
-            message += `To: ${txn.toAccount?.accountNumber || "-"}\n`
+            message += `From: ${fromAcc}\n`
+            message += `To: ${toAcc}\n`
             message += `Date: ${txn.createdAt}\n\n`
         })
 
-        // 📧 Send Email
-        await sendEmail(account.user.email, "Mini Statement", message)
+        message += `Total Balance: ${account.balance}`
+
+        const filePath = path.join(__dirname, `../files/statement-${accountNumber}.txt`)
+
+        fs.writeFileSync(filePath, message)
+
+        await sendEmail(
+            account.user.email,
+            "Mini Statement",
+            "Please find attached mini statement",
+            filePath
+        )
 
         res.json({
             message: "Mini statement sent to email"

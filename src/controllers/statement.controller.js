@@ -1,8 +1,7 @@
 const accountModel = require("../models/account.model")
 const sendEmail = require("../services/sendEmail")
 const getMiniStatementData = require("../services/miniStmt")
-const getMiniStatementFile = require("../services/statementFile.service")
-const generateStatementFile = require("../services/statementFile.service")
+const generateStatementFile = require("../services/statementFile")
 
 const getMiniStatement = async (req,res) => {
     try {

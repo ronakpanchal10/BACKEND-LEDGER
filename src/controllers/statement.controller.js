@@ -1,8 +1,8 @@
 const accountModel = require("../models/account.model")
-const fs = require("fs")
-const path = require("path")
 const sendEmail = require("../services/sendEmail")
 const getMiniStatementData = require("../services/miniStmt")
+const getMiniStatementFile = require("../services/statementFile.service")
+const generateStatementFile = require("../services/statementFile.service")
 
 const getMiniStatement = async (req,res) => {
     try {
@@ -36,6 +36,7 @@ const getMiniStatement = async (req,res) => {
 const sendMiniStatementEmail = async (req, res) => {
     try {
         const { accountNumber } = req.params
+        const { format } = req.query
 
         const account = await accountModel.findOne({ accountNumber }).populate("user")
 
@@ -68,27 +69,42 @@ const sendMiniStatementEmail = async (req, res) => {
                 toAcc = toAcc || "UNKNOWN"
             }
 
-            message += `${index + 1}. ${txn.type.toUpperCase()} | ₹${txn.amount}\n`
+            message += `${index + 1}. ${txn.type.toUpperCase()} | Rs.${txn.amount}\n`
             message += `From: ${fromAcc}\n`
             message += `To: ${toAcc}\n`
             message += `Date: ${txn.createdAt}\n\n`
         })
 
-        message += `Total Balance: ${account.balance}`
+        message += `Total Balance: Rs.${account.balance}`
 
-        const filePath = path.join(__dirname, `../files/statement-${accountNumber}.txt`)
+        const fileFormat = format || "txt"
 
-        fs.writeFileSync(filePath, message)
+        let filePath
+
+        if (fileFormat === "pdf") {
+            filePath = await generateStatementFile(
+                accountNumber,
+                transactions,
+                account.balance,
+                "pdf"
+            )
+        } else {
+            filePath = await generateStatementFile(
+                accountNumber,
+                message,
+                "txt"
+            )
+        }
 
         await sendEmail(
             account.user.email,
             "Mini Statement",
-            "Please find attached mini statement",
+            `Please find attached ${fileFormat.toUpperCase()} statement`,
             filePath
         )
 
         res.json({
-            message: "Mini statement sent to email"
+            message: `${fileFormat.toUpperCase()} statement`
         })
 
     } catch (err) {

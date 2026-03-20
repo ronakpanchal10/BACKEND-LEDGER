@@ -4,13 +4,13 @@ const authMiddleware = require("../middleware/auth.middleware")
 
 const router = express.Router()
 
-// post /api/auth/register
+// POST /api/auth/register
 router.post("/register",authController.userRegisterController)
 
-//post /api/auth/verify-otp
+// POST /api/auth/verify-otp
 router.post("/verify-otp", authController.verifyOTPController)
 
-// post /api/auth/login
+// POST /api/auth/login
 router.post("/login",authController.userLoginController)
 
 // GET /api/auth/me
